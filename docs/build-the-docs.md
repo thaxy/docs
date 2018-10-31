@@ -12,28 +12,98 @@ There are two ways to generate the documentation in HTML format:
 
 ### Using the Docker Container
 
-From the command line, in the root of the docs directory, run the command:
+To build the documentation using the Docker container, from the command line, in the root of the docs directory, run the following command:
 
 ```
 docker run -ti --rm \
-    -v $(pwd):$(pwd) \
-    -w $(pwd) \
+    -e DOCSEARCH_ENABLED=true \
+    -e DOCSEARCH_ENGINE=lunr \
+    -v $(pwd):/antora/ \
+    -w /antora/ \
+    antora:custom \
+      --generator=./generate-site.js \
+      --cache-dir /antora/cache/ \
+      --stacktrace \
+      site.yml
+```
+
+This command:
+
+- Starts up [ownCloud's custom Antora Docker container](https://hub.docker.com/r/antora/antora/)
+- Removes any existing documentation
+- Runs Antora's `generate` command, which regenerates the documentation
+
+If all goes well, you will _not_ see any console output.
+If a copy of the container doesn't exist locally, you can pull down a copy, by running `docker pull antora/antora`.
+Otherwise, you should see output similar to the following:
+
+```console
+Unable to find image 'antora/antora:1.0.1' locally
+1.0.1: Pulling from antora/antora
+605ce1bd3f31: Already exists
+0511902e1bcd: Downloading  5.347MB/19.61MB
+343e34c41f87: Download complete
+1e0ba8eb567c: Downloading  4.569MB/37.51MB
+d5a49762c0f9: Download complete
+```
+
+#### Disabling Site Search Integration
+
+To disable building the documentation with integrated site search, the administrator needs to export the environment variable `DOCSEARCH_ENABLED`, setting it to `false`, when generating the documentation.
+
+To do this, from the command line, in the root of the docs directory, run the command:
+
+```
+docker run -ti --rm \
+    -e DOCSEARCH_ENABLED=false \
+    -v $(pwd):/antora/ \
+    -w /antora/ \
     antora/antora:1.0.1 \
     generate site.yml
 ```
 
-This command starts up the Antora Docker container, removes the existing documentation, and then runs Antora's generate command, an regenerates the documentation.
-If all goes well, you will _not_ see any console output.
-
 ### Running Antora From The Command-Line
 
-From the command line, in the root of the docs directory, run the command:
+#### With Integrated Site Search
 
+To build the documentation with integrated site search, from the command line, in the root of the docs directory, run the following command:
+
+```console
+DOCSEARCH_ENABLED=true DOCSEARCH_ENGINE=lunr \
+    antora --generator=./generate-site.js site.yml
 ```
-antora site.yml
-```
+
+**Note:** ***before running this command***, make sure that the documentation’s being served at `http://localhost:5000`, or change `site.url` in `site.yml` to refer to the domain and port where the documentation is being hosted.
 
 If all goes well, you will _not_ see any console output.
+When the build completes, in `public/`, off the root of the docs directory, a site search index file should have been created, called `search_index.json`.
+
+##### The Generated Search Index Needs To Be Updated
+
+The playbook file (`site.yml`) sets the `site.url` configuration directive to `http://localhost:5000`.
+It’s likely fair to assume that this isn’t the domain where the documentation will be hosted.
+
+Given that, after the documentation has been generated the search index file (`public/search_index.json`) needs to be updated to change `http://localhost:5000` to the hosting server where the documentation is hosted.
+
+Using `sed`, such as in the following example, from the root directory of the project should suffice.
+
+```bash
+#!/bin/bash
+set -e
+
+sed -i 's/localhost:5000/<hosted domain and port>/g' public/search_index.json
+```
+
+#### Without Integrated Site Search
+
+If you do not want to enable site search then you need to generate the documentation slightly differently.
+From the command line, in the root of the docs directory, run the following command:
+
+```
+antora generate site.yml
+```
+
+Note that no environment variables have been exported, and no custom generator has been specified.
 
 ### Viewing The HTML Documentation
 
